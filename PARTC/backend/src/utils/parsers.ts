@@ -10,9 +10,21 @@ export function parseDate(value: unknown): string | null {
   return Number.isNaN(d.getTime()) ? null : d.toISOString();
 }
 
-export function extractYearMonth(dateStr: string | null): { year: number | null; month: number | null } {
-  if (!dateStr) return { year: null, month: null };
-  const d = new Date(dateStr);
+export function extractYearMonth(dateInput: unknown): { year: number | null; month: number | null } {
+  if (typeof dateInput !== "string" || !dateInput.trim()) return { year: null, month: null };
+
+  const text = dateInput.trim();
+  const usDate = /^(\d{2})\/(\d{2})\/(\d{4})$/;
+  const m = text.match(usDate);
+  if (m) {
+    const month = Number(m[1]);
+    const year = Number(m[3]);
+    if (month >= 1 && month <= 12 && Number.isFinite(year)) {
+      return { year, month };
+    }
+  }
+
+  const d = new Date(text);
   if (Number.isNaN(d.getTime())) return { year: null, month: null };
   return { year: d.getUTCFullYear(), month: d.getUTCMonth() + 1 };
 }

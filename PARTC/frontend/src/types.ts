@@ -19,9 +19,10 @@ export type RankedFacility = {
 
 export type SummaryResponse = {
   total: number;
-  avgMortality: number;
-  minMortality: number;
-  maxMortality: number;
+  avgMortality: number | null;
+  minMortality: number | null;
+  maxMortality: number | null;
+  anomalyThreshold: number | null;
   top10Highest: RankedFacility[];
   top10Lowest: RankedFacility[];
 };
@@ -36,9 +37,42 @@ export type DistributionBucket = {
   count: number;
 };
 
+export type TableRow = RankedFacility & {
+  measureId: string;
+  measureName: string;
+  startDate: string | null;
+  year: number | null;
+  month: number | null;
+};
+
 export type AnalysisResponse = {
   monthlyTrend: AnalysisBucket[];
   byState: AnalysisBucket[];
   byZip: AnalysisBucket[];
   distribution: DistributionBucket[];
+  ranking: TableRow[];
+  benchmarks: {
+    nationalAvg: number | null;
+    comparisonSource: "selected" | "default_top5";
+    stateComparisons: Array<{
+      state: string;
+      avgMortality: number | null;
+      count: number;
+      deltaFromNational: number | null;
+    }>;
+  };
+};
+
+export type TableResponse = {
+  data: TableRow[];
+  page: number;
+  pageSize: number;
+  total: number;
+};
+
+export type FilterOptionsResponse = {
+  years: number[];
+  months: number[];
+  states: string[];
+  currentTotal: number;
 };

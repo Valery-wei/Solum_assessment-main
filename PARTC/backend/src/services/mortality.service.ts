@@ -13,13 +13,15 @@ import { fetchCmsRows } from "./cms.service.js";
 let cache: MortalityRecord[] | null = null;
 let cacheAt = 0;
 const TTL_MS = 1000 * 60 * 30;
+const FILTER_CACHE_TTL_MS = 1000 * 60 * 5;
+const filteredCache = new Map<string, { at: number; data: MortalityRecord[] }>();
 
 function mapRow(row: RawCmsRow): MortalityRecord | null {
   const measureName = safeString(row.measure_name);
   if (!measureName || !isMortalityMeasure(measureName)) return null;
 
   const startDate = parseDate(row.start_date);
-  const { year, month } = extractYearMonth(startDate);
+  const { year, month } = extractYearMonth(row.start_date);
 
   return {
     facilityId: safeString(row.facility_id),
@@ -58,9 +60,40 @@ function validRates(data: MortalityRecord[]) {
   return data.filter((d) => d.mortalityRate !== null);
 }
 
+function serializeFilters(filters: FilterParams) {
+  const normalized = {
+    ...filters,
+    states: filters.states ? [...filters.states].sort() : undefined,
+  };
+  return JSON.stringify(normalized);
+}
+
+function getFilteredRecords(all: MortalityRecord[], filters: FilterParams, scope = "default") {
+  const now = Date.now();
+  const key = `${cacheAt}:${scope}:${serializeFilters(filters)}`;
+  const hit = filteredCache.get(key);
+  if (hit && now - hit.at < FILTER_CACHE_TTL_MS) return hit.data;
+  const data = applyFilters(all, filters);
+  filteredCache.set(key, { at: now, data });
+  return data;
+}
+
+function percentile(values: number[], p: number) {
+  if (!values.length) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const idx = Math.min(sorted.length - 1, Math.max(0, Math.ceil((p / 100) * sorted.length) - 1));
+  return sorted[idx];
+}
+
+function averageRate(data: MortalityRecord[]) {
+  const rates = validRates(data).map((x) => x.mortalityRate as number);
+  if (!rates.length) return null;
+  return Number((rates.reduce((a, b) => a + b, 0) / rates.length).toFixed(4));
+}
+
 export async function getSummary(filters: FilterParams) {
   const all = await getAllMortalityRecords();
-  const filtered = applyFilters(all, filters);
+  const filtered = getFilteredRecords(all, filters, "summary");
   const rated = validRates(filtered);
 
   const sorted = [...rated].sort(
@@ -76,6 +109,7 @@ export async function getSummary(filters: FilterParams) {
       : null,
     minMortality: rates.length ? Math.min(...rates) : null,
     maxMortality: rates.length ? Math.max(...rates) : null,
+    anomalyThreshold: rates.length ? percentile(rates, 95) : null,
     top10Highest: [...sorted].reverse().slice(0, 10),
     top10Lowest: sorted.slice(0, 10),
   };
@@ -83,13 +117,36 @@ export async function getSummary(filters: FilterParams) {
 
 export async function getTable(filters: FilterParams) {
   const all = await getAllMortalityRecords();
-  const filtered = applyFilters(all, filters).sort((a, b) => {
+  const filtered = getFilteredRecords(all, filters, "table").sort((a, b) => {
     const byRate = (b.mortalityRate ?? -Infinity) - (a.mortalityRate ?? -Infinity);
     if (byRate !== 0) return byRate;
     return a.facilityName.localeCompare(b.facilityName);
   });
 
   return paginate(filtered, filters.page || 1, filters.pageSize || 20);
+}
+
+function uniqueSortedNumbers(values: Array<number | null>) {
+  return [...new Set(values.filter((v): v is number => v !== null))].sort((a, b) => a - b);
+}
+
+function uniqueSortedStrings(values: string[]) {
+  return [...new Set(values.filter(Boolean))].sort((a, b) => a.localeCompare(b));
+}
+
+export async function getFilterOptions(filters: FilterParams) {
+  const all = await getAllMortalityRecords();
+  const forYear = getFilteredRecords(all, { ...filters, year: undefined, month: undefined }, "options-year");
+  const forMonth = getFilteredRecords(all, { ...filters, month: undefined }, "options-month");
+  const forState = getFilteredRecords(all, { ...filters, state: undefined, states: undefined }, "options-state");
+  const current = getFilteredRecords(all, filters, "options-current");
+
+  return {
+    years: uniqueSortedNumbers(forYear.map((r) => r.year)),
+    months: uniqueSortedNumbers(forMonth.map((r) => r.month)),
+    states: uniqueSortedStrings(forState.map((r) => r.state)),
+    currentTotal: current.length,
+  };
 }
 
 function averageBy<T extends string | number>(
@@ -119,7 +176,7 @@ function averageBy<T extends string | number>(
 
 export async function getAnalysis(filters: FilterParams) {
   const all = await getAllMortalityRecords();
-  const filtered = applyFilters(all, filters);
+  const filtered = getFilteredRecords(all, filters, "analysis");
 
   const monthlyTrend = averageBy(filtered, (r) =>
     r.year && r.month ? `${r.year}-${String(r.month).padStart(2, "0")}` : null
@@ -151,11 +208,95 @@ export async function getAnalysis(filters: FilterParams) {
     .sort((a, b) => (b.mortalityRate as number) - (a.mortalityRate as number))
     .slice(0, 100);
 
+  const selectedStates = filters.states?.length
+    ? filters.states
+    : filters.state
+      ? [filters.state]
+      : [];
+  /** When no state is chosen, default to top 5 states by avg mortality so the comparison UI is always populated. */
+  let comparisonStates = selectedStates;
+  if (comparisonStates.length === 0 && byState.length > 0) {
+    comparisonStates = byState.slice(0, 5).map((b) => String(b.key));
+  }
+  const baseForComparison = getFilteredRecords(
+    all,
+    { ...filters, state: undefined, states: undefined },
+    "analysis-base-comparison"
+  );
+  const nationalAvg = averageRate(baseForComparison);
+  const stateComparisons = comparisonStates.map((state) => {
+    const scoped = getFilteredRecords(baseForComparison, { state }, `analysis-compare-${state}`);
+    const avgMortality = averageRate(scoped);
+    return {
+      state,
+      avgMortality,
+      count: validRates(scoped).length,
+      deltaFromNational:
+        avgMortality !== null && nationalAvg !== null
+          ? Number((avgMortality - nationalAvg).toFixed(4))
+          : null,
+    };
+  });
+
   return {
     monthlyTrend,
     byState,
     byZip,
     distribution,
     ranking,
+    benchmarks: {
+      nationalAvg,
+      stateComparisons,
+      comparisonSource: selectedStates.length ? "selected" : "default_top5",
+    },
   };
+}
+
+function escapeCsv(value: unknown): string {
+  const text = value === null || value === undefined ? "" : String(value);
+  if (text.includes(",") || text.includes("\"") || text.includes("\n")) {
+    return `"${text.replace(/"/g, "\"\"")}"`;
+  }
+  return text;
+}
+
+export async function getExportCsv(filters: FilterParams) {
+  const all = await getAllMortalityRecords();
+  const rows = getFilteredRecords(all, filters, "export").sort((a, b) => {
+    const byRate = (b.mortalityRate ?? -Infinity) - (a.mortalityRate ?? -Infinity);
+    if (byRate !== 0) return byRate;
+    return a.facilityName.localeCompare(b.facilityName);
+  });
+  const header = [
+    "facilityId",
+    "facilityName",
+    "state",
+    "zipCode",
+    "measureId",
+    "measureName",
+    "mortalityRate",
+    "year",
+    "month",
+    "startDate",
+  ];
+  const lines = [
+    header.join(","),
+    ...rows.map((r) =>
+      [
+        r.facilityId,
+        r.facilityName,
+        r.state,
+        r.zipCode,
+        r.measureId,
+        r.measureName,
+        r.mortalityRate,
+        r.year,
+        r.month,
+        r.startDate,
+      ]
+        .map(escapeCsv)
+        .join(",")
+    ),
+  ];
+  return lines.join("\n");
 }
