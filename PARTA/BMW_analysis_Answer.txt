@@ -1,0 +1,56 @@
+# Written Answer
+
+## Question A: Electrification Transition Analysis
+
+The results show that all regions have a positive relationship between BEV share and both units sold and revenue, indicating that electrification is generally associated with improved sales performance.
+
+Among all regions, **China demonstrates the strongest electrification transition**. It has the highest BEV trend slope (approximately 0.00205) and the highest latest BEV share (around 20%). In addition, China maintains a solid positive correlation between BEV share and both units sold and revenue, suggesting that the adoption of electric vehicles is effectively driving market growth.
+
+The USA and Europe also show strong positive correlations and similar trend slopes, but their BEV shares are slightly lower than China. Rest of World shows the weakest relationship and the lowest BEV growth trend.
+
+Overall, China is the leading region in terms of electrification progress.
+
+---
+
+## Question B: Price Elasticity Analysis
+
+The regression results show that price elasticity varies significantly across different models.
+
+For some models such as **X5 and X7**, the estimated elasticity is positive, which suggests that higher prices are associated with higher sales. This may reflect premium positioning or brand effects rather than standard demand behavior. In contrast, models such as **iX, 5 Series, MINI, and X3** show negative elasticity, which is more consistent with economic theory where higher prices reduce demand.
+
+However, many models have relatively high p-values, indicating that the price effect is not always statistically significant. This suggests that other factors such as brand perception, technology, or market conditions may play a larger role.
+
+When considering GDP regimes, the results indicate that elasticity can vary depending on economic conditions. For example, the X5 model shows a strong positive elasticity under medium GDP conditions, supported by a significant interaction term. This implies that demand sensitivity to price may change with macroeconomic environments.
+
+Overall, price elasticity is heterogeneous across models and influenced by broader economic conditions.
+
+---
+
+## Question C: Seasonality and Macroeconomic Effects
+
+The seasonal analysis shows clear monthly patterns across regions.
+
+- **China** peaks in March and reaches its lowest level in January.
+- **Europe** peaks in December and is lowest around January or October.
+- **Rest of World** peaks in June and is lowest in April.
+- **USA** peaks in June and is lowest in August.
+
+These patterns suggest that mid-year and year-end periods tend to have stronger sales performance, likely due to seasonal demand cycles or promotional activities.
+
+The regression results further show that macroeconomic variables such as GDP growth and fuel price index have limited direct significance. Most coefficients have relatively high p-values, indicating weak statistical evidence of strong direct effects.
+
+However, some interaction terms between month and GDP growth show moderate significance, suggesting that macroeconomic conditions may influence seasonality rather than overall demand levels.
+
+Overall, seasonality plays a more important role than macroeconomic variables in explaining sales and revenue patterns.
+
+---
+
+## Conclusion
+
+The analysis reveals three key insights:
+
+1. **China leads in electrification**, showing the fastest growth and highest BEV adoption.
+2. **Price elasticity varies by model**, with premium models sometimes exhibiting unconventional demand behavior.
+3. **Seasonality is a dominant factor**, while macroeconomic variables have more limited and indirect effects.
+
+These findings highlight the importance of regional strategy, product positioning, and seasonal planning in the automotive market.
