@@ -1,0 +1,66 @@
+## Design Notes
+
+This project is a small full-stack analytics app for CMS mortality data, focused on filtering, ranking, and comparing mortality outcomes by time and geography.
+
+### Tech Stack
+- Frontend: React + TypeScript + React Query + Recharts
+- Backend: Node.js + Express + TypeScript
+- Data source: local CSV (`Complications_and_Deaths-Hospital.csv`) with API fallback
+- Styling: lightweight utility-style CSS in `frontend/src/styles.css`
+
+### Architecture Overview
+1. **Frontend**
+   - Two pages: `Summary` and `Analysis`
+   - Shared filter bar for year, month, state, multi-state, ZIP, and facility name
+   - Typed API client with reusable query helpers
+
+2. **Backend**
+   - Loads, parses, and normalizes mortality-related rows
+   - Extracts year/month from date fields
+   - Applies consistent filters for all endpoints
+   - Returns paginated and aggregated responses
+
+### API Endpoints
+- **`GET /api/mortality/summary`**
+  - `total`, `avgMortality`, `minMortality`, `maxMortality`
+  - `top10Highest`, `top10Lowest`
+  - `anomalyThreshold` (P95 used for UI highlighting)
+
+- **`GET /api/mortality/table`**
+  - Paginated filtered rows: `data`, `page`, `pageSize`, `total`
+
+- **`GET /api/mortality/analysis`**
+  - `monthlyTrend`, `byState`, `byZip`, `distribution`, `ranking`
+  - `benchmarks`:
+    - `nationalAvg`
+    - `stateComparisons` (selected states or default top-5 states)
+    - `comparisonSource`
+
+- **`GET /api/mortality/options`**
+  - Dynamic filter options: `years`, `months`, `states`, `currentTotal`
+
+- **`GET /api/mortality/export.csv`**
+  - CSV download of current filtered results
+
+### Key Implemented Features
+- Backend-driven filtering and pagination
+- Multi-state side-by-side comparison against national average
+- CSV export for current filters
+- Outlier highlighting in table/ranking views
+- Dynamic filter options to reduce no-result combinations
+- Frontend query caching + backend filtered-result caching
+
+### Performance Notes
+- In-memory dataset cache with TTL
+- Additional filtered-result cache keyed by normalized filters
+- React Query defaults tuned to reduce unnecessary refetching
+
+### Known Data Characteristics
+- Mortality records in this dataset are concentrated in limited month values, so monthly trend points may be sparse.
+- Invalid/missing mortality values are excluded from aggregation and ranking calculations.
+
+### Next Improvements (Optional)
+- Virtualized tables for very large result sets
+- Pre-aggregated materialized metrics for faster analysis endpoints
+- Additional anomaly rules (z-score/IQR/user-selectable threshold)
+- Automated API contract tests
